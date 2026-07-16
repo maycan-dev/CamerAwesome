@@ -121,10 +121,12 @@ previewPhotoSampleBuffer:(CMSampleBufferRef)previewPhotoSampleBuffer
     }
   }
   
-  UIImage *imageConverted = [self imageByCroppingImage:image toSize:CGSizeMake(outputWidth, outputHeight)];
-  
-  image = [UIImage imageWithCGImage:[imageConverted CGImage] scale:0.0 orientation:[self getJpegOrientation]];
-
+  // PATCH(ssdam): 크롭 생략 — Photo 프리셋이 full 4:3 센서(= portrait 3:4)라 크롭 불필요.
+  // CamerAwesome의 imageByCroppingImage Ratio4_3 분기는 portrait에서 오리엔테이션 혼동으로
+  // 정사각(1:1)을 잘라내는 버그가 있다(4:3 센서가 1440×1440으로 저장됨). 원본 full 4:3를 그대로
+  // 저장 → 프리뷰(4:3)와 WYSIWYG, 컴포저/덱 3:4 박스에서 크롭 없음.
+  (void)outputWidth;
+  (void)outputHeight;
   NSData *imageWithExif = [UIImageJPEGRepresentation(image, 1.0) addExif:container];
   
   bool success = [imageWithExif writeToFile:_path atomically:YES];
