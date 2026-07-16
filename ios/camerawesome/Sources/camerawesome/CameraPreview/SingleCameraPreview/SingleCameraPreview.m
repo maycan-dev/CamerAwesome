@@ -174,6 +174,29 @@
 
 /// Set camera preview size
 - (void)setCameraPreset:(CGSize)currentPreviewSize {
+  // PATCH(ssdam): iOS 프리뷰 FOV를 캡처(4:3 full sensor)와 일치시킴. CamerAwesome는 프리뷰 세션에
+  // 최고 비디오 프리셋(16:9)을 골라 세로에서 좌우 FOV가 좁아진다(upstream #624). 사진 모드에선
+  // AVCaptureSessionPresetPhoto(4:3 full sensor)를 강제해 프리뷰 = 캡처 FOV를 일치시킨다(WYSIWYG).
+  // activeFormat은 프리셋과 무관하게 항상 full-sensor 4:3라 프리뷰 크기 산출에 안전. 비디오 녹화/
+  // 이미지 스트리밍 모드는 원 로직 유지(그쪽은 16:9 비디오 프리셋이 맞다).
+  BOOL photoMode = (_captureMode != Video) && !_videoController.isRecording &&
+                   !_imageStreamController.streamImages;
+  if (photoMode && [_captureSession canSetSessionPreset:AVCaptureSessionPresetPhoto]) {
+    if (![_captureSession.sessionPreset isEqualToString:AVCaptureSessionPresetPhoto]) {
+      [_captureSession setSessionPreset:AVCaptureSessionPresetPhoto];
+    }
+    _currentPreset = AVCaptureSessionPresetPhoto;
+    CMVideoDimensions dims =
+        CMVideoFormatDescriptionGetDimensions(_captureDevice.activeFormat.formatDescription);
+    if (dims.width > 0 && dims.height > 0) {
+      _currentPreviewSize = CGSizeMake(dims.width, dims.height);
+    } else {
+      _currentPreviewSize = CGSizeMake(4032, 3024); // 4:3 fallback
+    }
+    [_videoController setPreviewSize:_currentPreviewSize];
+    return;
+  }
+
   CGSize targetSize = currentPreviewSize;
 
   // Determine the target size based on the current mode and settings
@@ -426,20 +449,29 @@
 
 /// Trigger focus on device at the specific point of the preview
 - (void)focusOnPoint:(CGPoint)position preview:(CGSize)preview error:(FlutterError * _Nullable __autoreleasing * _Nonnull)error {
+  // PATCH(ssdam): focusPointOfInterest/exposurePointOfInterest는 센서 landscape(home-right) 정규화
+  // 좌표계를 요구. 프리뷰는 portrait(고정)라 90° 회전 변환이 필요하다. CamerAwesome 원본은 정규화
+  // 좌표를 변환 없이 넘겨 portrait에서 초점 지점이 어긋났다. 후면=(y, 1-x), 전면(미러)=(y, x).
+  // 노출점도 같은 지점으로 설정 → 탭 시 밝기가 그 지점 기준으로 반응(iOS 탭 포커스 결, 작동 가시화).
+  BOOL isFront = (_cameraSensorPosition == PigeonSensorPositionFront);
+  CGPoint poi = isFront ? CGPointMake(position.y, position.x)
+                        : CGPointMake(position.y, 1.0 - position.x);
   NSError *lockError;
-  if ([_captureDevice isFocusModeSupported:AVCaptureFocusModeAutoFocus] && [_captureDevice isFocusPointOfInterestSupported]) {
-    if ([_captureDevice lockForConfiguration:&lockError]) {
-      if (lockError != nil) {
-        *error = [FlutterError errorWithCode:@"FOCUS_ERROR" message:@"impossible to set focus point" details:@""];
-        return;
-      }
-      
-      [_captureDevice setFocusPointOfInterest:position];
-      [_captureDevice setFocusMode:AVCaptureFocusModeContinuousAutoFocus];
-      
-      [_captureDevice unlockForConfiguration];
-    }
+  if (![_captureDevice lockForConfiguration:&lockError] || lockError != nil) {
+    *error = [FlutterError errorWithCode:@"FOCUS_ERROR" message:@"impossible to lock device" details:@""];
+    return;
   }
+  if ([_captureDevice isFocusPointOfInterestSupported] &&
+      [_captureDevice isFocusModeSupported:AVCaptureFocusModeContinuousAutoFocus]) {
+    [_captureDevice setFocusPointOfInterest:poi];
+    [_captureDevice setFocusMode:AVCaptureFocusModeContinuousAutoFocus];
+  }
+  if ([_captureDevice isExposurePointOfInterestSupported] &&
+      [_captureDevice isExposureModeSupported:AVCaptureExposureModeContinuousAutoExposure]) {
+    [_captureDevice setExposurePointOfInterest:poi];
+    [_captureDevice setExposureMode:AVCaptureExposureModeContinuousAutoExposure];
+  }
+  [_captureDevice unlockForConfiguration];
 }
 
 - (void)receivedImageFromStream {
