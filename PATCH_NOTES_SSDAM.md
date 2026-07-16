@@ -3,9 +3,10 @@
 쓰담(ssdam) 앱용 CamerAwesome 포크. base = upstream `master` (pubspec 2.5.0 시점).
 앱에서 `dependency_overrides`로 이 브랜치/커밋을 참조한다.
 
-## 패치 (iOS, `SingleCameraPreview.m`)
+## 패치 (iOS)
 
-두 곳 모두 `// PATCH(ssdam)` 주석으로 표시. 이유·복원 근거는 인라인 주석 참조.
+모두 `// PATCH(ssdam)` 주석으로 표시. 이유·복원 근거는 인라인 주석 참조.
+파일: `SingleCameraPreview.m`(1·2), `Controllers/Picture/CameraPictureController.m`(3).
 
 ### 1. `setCameraPreset` — 프리뷰 FOV를 캡처와 일치 (4:3 full sensor)
 
@@ -23,10 +24,17 @@ FOV를 일치시킨다(WYSIWYG). 프리뷰 크기는 `activeFormat`(프리셋 �
 넘겨 portrait 앱에서 초점 지점이 어긋났다. portrait 90° 회전(후면 `(y,1-x)`, 전면 `(y,x)`)을
 적용하고, `exposurePointOfInterest`도 같은 지점으로 설정(탭-포커스 시 노출도 함께, iOS 결).
 
+### 3. `CameraPictureController.m` — 촬영본 크롭 생략 (full 4:3 유지)
+
+`imageByCroppingImage`의 `Ratio4_3` 분기가 portrait에서 오리엔테이션 혼동으로 정사각(1:1)을
+잘라낸다 — 4:3 센서가 1440×1440으로 저장되는 버그. 패치 1로 Photo 프리셋이 이미 full 4:3
+(=portrait 3:4)이라 크롭 자체가 불필요 → 크롭 호출을 건너뛰고 원본을 그대로 저장한다.
+프리뷰(4:3)와 WYSIWYG, 앱의 3:4 박스에서 잘림 없음.
+
 ## upstream 반영(선택)
 
-두 수정 모두 모든 사용자에게 유효한 버그 픽스. upstream PR로 올리면 머지 시 이 포크가 불필요해진다.
+세 수정 모두 모든 사용자에게 유효한 버그 픽스. upstream PR로 올리면 머지 시 이 포크가 불필요해진다.
 
 ## upstream 동기화
 
-`git fetch upstream && git merge upstream/master` 후 충돌 해소(패치는 iOS 파일 2곳뿐).
+`git fetch upstream && git merge upstream/master` 후 충돌 해소(패치는 iOS 파일 3곳뿐).
