@@ -6,7 +6,7 @@
 ## 패치 (iOS)
 
 모두 `// PATCH(ssdam)` 주석으로 표시. 이유·복원 근거는 인라인 주석 참조.
-파일: `SingleCameraPreview.m`(1·2), `Controllers/Picture/CameraPictureController.m`(3).
+파일: `SingleCameraPreview.m`(1·2·4), `Controllers/Picture/CameraPictureController.m`(3).
 
 ### 1. `setCameraPreset` — 프리뷰 FOV를 캡처와 일치 (4:3 full sensor)
 
@@ -31,9 +31,18 @@ FOV를 일치시킨다(WYSIWYG). 프리뷰 크기는 `activeFormat`(프리셋 �
 (=portrait 3:4)이라 크롭 자체가 불필요 → 크롭 호출을 건너뛰고 원본을 그대로 저장한다.
 프리뷰(4:3)와 WYSIWYG, 앱의 3:4 박스에서 잘림 없음.
 
+### 4. `SingleCameraPreview.m` `takePictureAtPath` — 캡처 지연 최소화 (`.speed` 우선순위)
+
+`AVCapturePhotoSettings`가 `photoQualityPrioritization`을 지정하지 않아 기본 `.balanced` — iPhone
+계산사진(Deep Fusion·멀티프레임 융합)을 태워 셔터~반환 지연이 ~1s. 그동안 앱이 셔터 화이트를
+홀드해 "촬영 애니가 너무 길다"는 UX 문제. 라이브 캔디드 1컷은 어차피 다운샘플하므로 계산사진
+품질이 낭비 → `AVCapturePhotoQualityPrioritizationSpeed`(단일프레임 즉시 반환)로 지연을 급감시킨다.
+`@available(iOS 13.0, *)` 가드. (이 패치는 앱 정책 성격이 강함 — upstream PR보다는 옵션 노출이 맞을 수 있음.)
+
 ## upstream 반영(선택)
 
-세 수정 모두 모든 사용자에게 유효한 버그 픽스. upstream PR로 올리면 머지 시 이 포크가 불필요해진다.
+패치 1·2·3은 모든 사용자에게 유효한 버그 픽스. upstream PR로 올리면 머지 시 불필요해진다.
+패치 4(.speed)는 앱 정책 성향이라 upstream엔 "옵션"으로 제안하는 게 적절.
 
 ## upstream 동기화
 

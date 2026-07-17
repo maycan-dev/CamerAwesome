@@ -551,7 +551,14 @@
   AVCapturePhotoSettings *settings = [AVCapturePhotoSettings photoSettings];
   [settings setFlashMode:_flashMode];
   [settings setHighResolutionPhotoEnabled:YES];
-  
+  // PATCH(ssdam): 캡처 지연 최소화 — 기본(balanced)은 iPhone 계산사진(Deep Fusion·멀티프레임
+  // 융합)을 태워 셔터~반환이 ~1s. 그 사이 셔터 화이트가 홀드되어 어색하다(사용자 리포트).
+  // 캔디드 라이브 1컷은 어차피 1440/q90로 다운샘플하므로 계산사진 품질은 낭비 → speed 우선순위로
+  // 단일프레임 즉시 반환(육안 동급, 지연 급감). Apple 권장: 반응성 우선 시 .speed.
+  if (@available(iOS 13.0, *)) {
+    settings.photoQualityPrioritization = AVCapturePhotoQualityPrioritizationSpeed;
+  }
+
   [_capturePhotoOutput capturePhotoWithSettings:settings
                                        delegate:cameraPicture];
   
